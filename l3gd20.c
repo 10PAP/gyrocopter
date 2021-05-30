@@ -1,9 +1,12 @@
 #include "l3gd20.h"
 
+uint8_t L3GD20_bit = 0;
+
 /* private functions */
+
 static uint8_t L3GD20_ReadSPI(uint8_t address);
 static void L3GD20_WriteSPI(uint8_t address, uint8_t data);
-static uint8_t SPI_Send(uint8_t data);
+static uint16_t SPI_Send(uint16_t data);
 
 static L3GD20_Scale_t L3GD20_Scale;
 
@@ -16,8 +19,8 @@ L3GD20_Result_t L3GD20_Init(L3GD20_Scale_t scale){
 	
 	/* 1. Write CTRL_REG2 QUESTION */
 	/* Set high-pass filter settings */
-	//L3GD20_WriteSPI(L3GD20_REG_CTRL_REG2, 0x20);
-	L3GD20_WriteSPI(L3GD20_REG_CTRL_REG2, 0x00);
+	L3GD20_WriteSPI(L3GD20_REG_CTRL_REG2, 0x20);
+	//L3GD20_WriteSPI(L3GD20_REG_CTRL_REG2, 0x00);
 	
 	/* 2. Write CTRL_REG3 QUESTION */
 	// L3GD20_WriteSPI(L3GD20_REG_CTRL_REG3, 0x08);
@@ -39,6 +42,7 @@ L3GD20_Result_t L3GD20_Init(L3GD20_Scale_t scale){
 	/* 4. Write CTRL_REG6 QUESTION */
 	
 	/* 5. Write REFERENCE QUESTION*/
+	L3GD20_ReadSPI(L3GD20_REG_REFERENCE);
 	
 	/* 6. Write INT1_THS QUESTION*/
 	/* 7. Write INT1_DUR QUESTION*/
@@ -50,7 +54,9 @@ L3GD20_Result_t L3GD20_Init(L3GD20_Scale_t scale){
 	
 	/* 10. Write CTRL_REG1 */
 	/* Enable L3GD20 Power bit - datasheet p.32 */
-	L3GD20_WriteSPI(L3GD20_REG_CTRL_REG1, 0xFF);
+	L3GD20_WriteSPI(L3GD20_REG_CTRL_REG1, 0xCF/*0xFF*/);
+
+	
 
 	/* Everything OK */
 	return L3GD20_Result_Ok;
@@ -58,14 +64,6 @@ L3GD20_Result_t L3GD20_Init(L3GD20_Scale_t scale){
 
 L3GD20_Result_t L3GD20_Read(L3GD20_Data_t * data) {
 	double temp, s;
-	
-	/* Read X axis */
-	data->X = L3GD20_ReadSPI(L3GD20_REG_OUT_X_L);
-	data->X |= L3GD20_ReadSPI(L3GD20_REG_OUT_X_H) << 8;
-
-	/* Read Y axis */
-	data->Y = L3GD20_ReadSPI(L3GD20_REG_OUT_Y_L);
-	data->Y |= L3GD20_ReadSPI(L3GD20_REG_OUT_Y_H) << 8;
 	
 	/* Read Z axis */
 	data->Z = L3GD20_ReadSPI(L3GD20_REG_OUT_Z_L);
@@ -95,55 +93,44 @@ L3GD20_Result_t L3GD20_Read(L3GD20_Data_t * data) {
 }
 
 
-static uint8_t SPI_Send(uint8_t data) {
+static uint16_t SPI_Send(uint16_t data) {
 	SPI_WAIT;
+	/* yesli zachelkivat' SE v displeye, to vrode danniye s gyroskopa tozge budut otpravlyat'sya */
 	SPI2->DR = data;
 	SPI_WAIT;
-	return (uint8_t)SPI2->DR;
+	return (uint16_t)SPI2->DR;
 }
 static uint8_t L3GD20_ReadSPI(uint8_t address) {
-	uint8_t data;
-	/* CS low */
+	uint16_t data;
 	L3GD20_CS_LOW;
-	/* Send address with read command */
-	SPI_Send(address | 0x80);
-	/* QUESTION */
-	data = SPI_Send(0xFF);
-	/* CS high */
+	data = SPI_Send((uint16_t)(((uint16_t)address | 0x80UL) << 8 | 0xFF));
 	L3GD20_CS_HIGH;
-	/* Return data */
-	return data;
+	return (uint8_t)(data & 0xFF);
 }
 
 static void L3GD20_WriteSPI(uint8_t address, uint8_t data) {
-	/* CS low */
 	L3GD20_CS_LOW;
-	/* Send address with write command */
-	SPI_Send(address);
-	/* Write data */
-	SPI_Send(data);
-	/* CS high */
+	SPI_Send((uint16_t)((uint16_t)data | ((uint16_t)address << 8)));
 	L3GD20_CS_HIGH;
 }
 
 void L3GD20_InitPins(){
-	// enable clock - ahbenr1??
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	
-	// configure
 	GPIOC->MODER |= GPIO_MODER_MODER0_0;
 	GPIOC->PUPDR |= GPIO_PUPDR_PUPDR0_0;
 	
-	// set CS high
 	L3GD20_CS_HIGH;
 }
 L3GD20_Status_t L3GD20_GetStatus(void){
-	uint8_t data = L3GD20_ReadSPI(L3GD20_REG_STATUS_REG);
+	L3GD20_Status_t data = L3GD20_ReadSPI(L3GD20_REG_STATUS_REG);
+	
 	if((data & (1UL << 3)) == 0){
 		return L3GD20_DataNotReady;
 	}
 	if((data & (1UL << 7)) != 0){
 		return L3GD20_DataOverWritten;
 	}
-	return L3GD20_DataReady;
+	
+	return data;
 }

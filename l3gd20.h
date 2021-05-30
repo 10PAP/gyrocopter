@@ -1,7 +1,7 @@
 #include <stm32f0xx.h>
 
-#define L3GD20_CS_HIGH (GPIOC->BSRR = GPIO_BSRR_BS_0)
-#define L3GD20_CS_LOW (GPIOC->BSRR = GPIO_BSRR_BR_0)
+#define L3GD20_CS_HIGH (GPIOC->BSRR = GPIO_BSRR_BS_0) ; L3GD20_bit = 1
+#define L3GD20_CS_LOW (GPIOC->BSRR = GPIO_BSRR_BR_0) ; L3GD20_bit = 0
 
 #define SPI_WAIT while(SPI2->SR & SPI_SR_BSY)
 
@@ -22,6 +22,7 @@
 #define L3GD20_REG_OUT_Z_H			0x2D
 
 #define L3GD20_REG_STATUS_REG		0x27
+#define L3GD20_REG_REFERENCE		0x25
 
 /* Sensitivity factors, datasheet pg. 9 */
 #define L3GD20_SENSITIVITY_250		8.75	/* 8.75 mdps/digit */
@@ -46,8 +47,8 @@ typedef struct {
 } L3GD20_Data_t;
 
 typedef enum {
-	L3GD20_DataReady,
 	L3GD20_DataNotReady,
+	L3GD20_DataReady,
 	L3GD20_DataOverWritten
 } L3GD20_Status_t;
 
@@ -55,3 +56,5 @@ L3GD20_Result_t L3GD20_Init(L3GD20_Scale_t scale);
 L3GD20_Result_t L3GD20_Read(L3GD20_Data_t* data);
 L3GD20_Status_t L3GD20_GetStatus(void);
 void L3GD20_InitPins(void);
+
+
